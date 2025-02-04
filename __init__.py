@@ -275,16 +275,19 @@ class EXPORT_MESH_OT_batch(Operator):
                     self.export_selection(export_name, context, base_dir)
 
         elif settings.mode == 'COLLECTIONS':
-            for col in bpy.data.collections.values():
-                bpy.ops.object.select_all(action='DESELECT')
-                for obj in col.objects:
+            active_collection = context.view_layer.active_layer_collection.collection
+            bpy.ops.object.select_all(action='DESELECT')
+            if settings.file_format != 'FBX':
+                for obj in active_collection.objects:
                     if not obj.type in settings.object_types:
                         continue
-                    if not obj in objects:
+                    if settings.limit == 'SELECTED' and obj not in selection:
+                        continue
+                    if settings.limit == 'VISIBLE' and obj not in view_layer.objects:
                         continue
                     obj.select_set(True)
-                if context.selected_objects:
-                    self.export_selection(col.name, context, base_dir)
+            if settings.file_format == 'FBX' or context.selected_objects:
+                self.export_selection(active_collection.name, context, base_dir)
 
         # Return selection to how it was
         bpy.ops.object.select_all(action='DESELECT')
@@ -398,7 +401,11 @@ class EXPORT_MESH_OT_batch(Operator):
             options = load_operator_preset(
                 'export_scene.fbx', settings.fbx_preset)
             options["filepath"] = fp+".fbx"
-            options["use_selection"] = True
+            if settings.mode == 'COLLECTIONS':
+                options["use_active_collection"] = True
+                options["use_selection"] = False
+            else:
+                options["use_selection"] = True
             options["use_mesh_modifiers"] = settings.apply_mods
             bpy.ops.export_scene.fbx(**options)
 
@@ -478,7 +485,7 @@ class BatchExportSettings(PropertyGroup):
             ("OBJECT_PARENTS", "Objects by Parents",
              "Same as 'Objects', but objects that are parents have their\nchildren exported with them instead of by themselves", 2),
             ("COLLECTIONS", "Collections",
-             "Each collection is exported into its own file", 3),
+             "Export the active collection", 3),
         ],
         default="OBJECT_PARENTS",
     )
