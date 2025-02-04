@@ -275,19 +275,38 @@ class EXPORT_MESH_OT_batch(Operator):
                     self.export_selection(export_name, context, base_dir)
 
         elif settings.mode == 'COLLECTIONS':
-            active_collection = context.view_layer.active_layer_collection.collection
-            bpy.ops.object.select_all(action='DESELECT')
-            if settings.file_format != 'FBX':
-                for obj in active_collection.objects:
-                    if not obj.type in settings.object_types:
-                        continue
-                    if settings.limit == 'SELECTED' and obj not in selection:
-                        continue
-                    if settings.limit == 'VISIBLE' and obj not in view_layer.objects:
-                        continue
-                    obj.select_set(True)
-            if settings.file_format == 'FBX' or context.selected_objects:
-                self.export_selection(active_collection.name, context, base_dir)
+            if settings.limit == 'VISIBLE':
+                root_layer_collection = context.view_layer.layer_collection
+                visible_layer_collections = self.get_visible_layer_collections(root_layer_collection)
+                for layer_col in visible_layer_collections:
+                    collection = layer_col.collection
+                    bpy.ops.object.select_all(action='DESELECT')
+                    if settings.file_format != 'FBX':
+                        for obj in collection.objects:
+                            if obj.type not in settings.object_types:
+                                continue
+                            if obj not in view_layer.objects:
+                                continue
+                            obj.select_set(True)
+                    original_active = context.view_layer.active_layer_collection
+                    if settings.file_format == 'FBX':
+                        context.view_layer.active_layer_collection = layer_col
+                    if context.selected_objects or settings.file_format == 'FBX':
+                        self.export_selection(collection.name, context, base_dir)
+                    if settings.file_format == 'FBX':
+                        context.view_layer.active_layer_collection = original_active
+            else:
+                active_collection = context.view_layer.active_layer_collection.collection
+                bpy.ops.object.select_all(action='DESELECT')
+                if settings.file_format != 'FBX':
+                    for obj in active_collection.objects:
+                        if obj.type not in settings.object_types:
+                            continue
+                        if settings.limit == 'SELECTED' and obj not in selection:
+                            continue
+                        obj.select_set(True)
+                if settings.file_format == 'FBX' or context.selected_objects:
+                    self.export_selection(active_collection.name, context, base_dir)
 
         # Return selection to how it was
         bpy.ops.object.select_all(action='DESELECT')
@@ -435,6 +454,16 @@ class EXPORT_MESH_OT_batch(Operator):
 
         print("exported: ", fp)
         self.file_count += 1
+
+    @staticmethod
+    def get_visible_layer_collections(layer_collection):
+        """Recursively collect all layer collections that are not excluded."""
+        visible = []
+        if not layer_collection.exclude:
+            visible.append(layer_collection)
+            for child in layer_collection.children:
+                visible.extend(EXPORT_MESH_OT_batch.get_visible_layer_collections(child))
+        return visible
 
 # Groups together all the addon settings that are saved in each .blend file
 class BatchExportSettings(PropertyGroup):
