@@ -457,12 +457,16 @@ class EXPORT_MESH_OT_batch(Operator):
 
     @staticmethod
     def get_visible_layer_collections(layer_collection):
-        """Recursively collect all layer collections that are not excluded."""
+        # Skip the root collection (it cannot be excluded and is not user-facing)
         visible = []
-        if not layer_collection.exclude:
-            visible.append(layer_collection)
+        if layer_collection.name == "Scene Collection":
             for child in layer_collection.children:
                 visible.extend(EXPORT_MESH_OT_batch.get_visible_layer_collections(child))
+        else:
+            if not layer_collection.exclude:
+                visible.append(layer_collection)
+                for child in layer_collection.children:
+                    visible.extend(EXPORT_MESH_OT_batch.get_visible_layer_collections(child))
         return visible
 
 # Groups together all the addon settings that are saved in each .blend file
